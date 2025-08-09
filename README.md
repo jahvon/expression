@@ -1,5 +1,8 @@
 # Expression
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/jahvon/expression)](https://goreportcard.com/report/github.com/jahvon/expression)
+[![Go Reference](https://pkg.go.dev/badge/github.com/jahvon/expression.svg)](https://pkg.go.dev/github.com/jahvon/expression)
+
 A Go package that provides powerful expression evaluation and templating capabilities, 
 built on top of the [expr](https://github.com/expr-lang/expr) language.
 
