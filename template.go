@@ -167,7 +167,7 @@ func (t *Template) evalExpr(expression string) (interface{}, error) {
 	if d, ok := t.data.(Data); ok {
 		runData = map[string]interface{}(d)
 	}
-	
+
 	result, err := expr.Run(program, runData)
 	if err != nil {
 		return nil, fmt.Errorf("evaluating expression: %w", err)
