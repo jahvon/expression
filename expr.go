@@ -1,7 +1,10 @@
 package expression
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"os"
 	"reflect"
 	"runtime"
 	"strconv"
@@ -9,6 +12,9 @@ import (
 
 	"github.com/expr-lang/expr"
 	"github.com/expr-lang/expr/vm"
+	"mvdan.cc/sh/v3/expand"
+	"mvdan.cc/sh/v3/interp"
+	"mvdan.cc/sh/v3/syntax"
 )
 
 func IsTruthy(ex string, data Data) (bool, error) {
@@ -72,7 +78,7 @@ func EvaluateString(ex string, data Data) (string, error) {
 
 type Data map[string]interface{}
 
-func BuildData(envMap map[string]string, kvPairs ...interface{}) (Data, error) {
+func BuildData(ctx context.Context, envMap map[string]string, kvPairs ...interface{}) (Data, error) {
 	kvMap := make(map[string]interface{})
 	if len(kvPairs)%2 != 0 {
 		return Data{}, fmt.Errorf("uneven number of key-value pairs")
@@ -90,6 +96,70 @@ func BuildData(envMap map[string]string, kvPairs ...interface{}) (Data, error) {
 	kvMap["os"] = runtime.GOOS
 	kvMap["arch"] = runtime.GOARCH
 	kvMap["env"] = envMap
+	kvMap["$"] = func(command string) (string, error) {
+		output, err := execute(ctx, command, environmentToSlice(envMap))
+		if err != nil {
+			return "", fmt.Errorf("command failed: %v, output: %s", err, output)
+		}
+		return strings.TrimSpace(output), nil
+	}
 
 	return kvMap, nil
+}
+
+func execute(ctx context.Context, cmd string, envList []string) (string, error) {
+	parser := syntax.NewParser()
+	reader := strings.NewReader(strings.TrimSpace(cmd))
+	prog, err := parser.Parse(reader, "")
+	if err != nil {
+		return "", fmt.Errorf("unable to parse command - %w", err)
+	}
+
+	if envList == nil {
+		envList = make([]string, 0)
+	}
+	envList = append(os.Environ(), envList...)
+
+	stdOutBuffer := &strings.Builder{}
+	stdErrBuffer := &strings.Builder{}
+
+	runner, err := interp.New(
+		interp.Env(expand.ListEnviron(envList...)),
+		interp.StdIO(
+			os.Stdin,
+			stdOutBuffer,
+			stdErrBuffer,
+		),
+	)
+	if err != nil {
+		return "", fmt.Errorf("unable to create runner - %w", err)
+	}
+
+	err = runner.Run(ctx, prog)
+	if err != nil {
+		var exitStatus interp.ExitStatus
+		if errors.As(err, &exitStatus) {
+			return stdErrBuffer.String(), fmt.Errorf("command exited with non-zero status %w", exitStatus)
+		}
+		return stdErrBuffer.String(), fmt.Errorf("encountered an error executing command - %w", err)
+	}
+	output := stdOutBuffer.String()
+	if stderr := stdErrBuffer.String(); stderr != "" {
+		output += "\n" + stderr
+	}
+	return strings.TrimSpace(output), nil
+}
+
+func environmentToSlice(env map[string]string) []string {
+	for k, v := range env {
+		if strings.Contains(v, "$") || strings.Contains(v, "{") {
+			env[k] = os.ExpandEnv(v)
+		}
+	}
+
+	var envSlice []string
+	for key, value := range env {
+		envSlice = append(envSlice, fmt.Sprintf("%s=%s", key, value))
+	}
+	return envSlice
 }

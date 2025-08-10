@@ -68,6 +68,8 @@ func main() {
     
     templateText := `
 Hello {{user}}!
+It's {{$("time")}}
+
 {{if enabled}}
 Your account is active.
 Items:

@@ -1,6 +1,7 @@
 package expression_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/jahvon/expression"
@@ -126,5 +127,28 @@ func TestDataComplexExpressions(t *testing.T) {
 				t.Errorf("expected %v, got %v", test.expected, result)
 			}
 		})
+	}
+}
+
+func TestBuildDataExec(t *testing.T) {
+	envMap := map[string]string{}
+	ctx := context.Background()
+	data, err := expression.BuildData(ctx, envMap)
+	if err != nil {
+		t.Fatalf("expected no error building data, got %v", err)
+	}
+
+	if _, exists := data["$"]; !exists {
+		t.Fatal("exec function should exist in BuildData result")
+	}
+
+	result, err := expression.EvaluateString(`$("echo \"hello world\"")`, data)
+	if err != nil {
+		t.Fatalf("expected no error executing command, got %v", err)
+	}
+
+	expected := "hello world"
+	if result != expected {
+		t.Errorf("expected %q, got %q", expected, result)
 	}
 }
