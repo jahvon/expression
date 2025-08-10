@@ -78,6 +78,12 @@ func EvaluateString(ex string, data Data) (string, error) {
 
 type Data map[string]interface{}
 
+// BuildData constructs a Data object from a context, environment map, and key-value pairs.
+// It provides the following variables by default:
+// - `os`: string for the  operating system (e.g., "linux", "darwin")
+// - `arch`: string for the architecture (e.g., "amd64", "arm64")
+// - `env`: the environment variables passed in the envMap
+// - `$`: a function that takes a shell command as input and returns its output as a string
 func BuildData(ctx context.Context, envMap map[string]string, kvPairs ...interface{}) (Data, error) {
 	kvMap := make(map[string]interface{})
 	if len(kvPairs)%2 != 0 {
@@ -108,6 +114,9 @@ func BuildData(ctx context.Context, envMap map[string]string, kvPairs ...interfa
 }
 
 func execute(ctx context.Context, cmd string, envList []string) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	parser := syntax.NewParser()
 	reader := strings.NewReader(strings.TrimSpace(cmd))
 	prog, err := parser.Parse(reader, "")
