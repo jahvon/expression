@@ -24,7 +24,7 @@ import (
 
 func main() {
     // Create data context
-    data := expression.Data{
+    data := map[string]interface{}{
         "name": "John",
         "age":  30,
     }
@@ -58,7 +58,7 @@ import (
 )
 
 func main() {
-    data := expression.Data{
+    data := map[string]interface{}{
         "user":    "Alice",
         "enabled": true,
         "items":   []string{"apple", "banana", "orange"},

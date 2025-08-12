@@ -8,7 +8,7 @@ import (
 )
 
 func setupTestData() (expression.Data, *expression.Template) {
-	data := expression.Data{
+	data := map[string]interface{}{
 		"os":         "linux",
 		"arch":       "amd64",
 		"store":      map[string]interface{}{"key1": "value1", "key2": 2},

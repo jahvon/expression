@@ -85,7 +85,7 @@ func TestEvaluateString(t *testing.T) {
 }
 
 func TestDataComplexExpressions(t *testing.T) {
-	data := expression.Data{
+	data := map[string]interface{}{
 		"os":   "linux",
 		"arch": "amd64",
 		"ctx": struct {
@@ -138,7 +138,11 @@ func TestBuildDataExec(t *testing.T) {
 		t.Fatalf("expected no error building data, got %v", err)
 	}
 
-	if _, exists := data["$"]; !exists {
+	dataMap, ok := data.(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected data to be a map[string]interface{}, got %T", data)
+	}
+	if _, exists := dataMap["$"]; !exists {
 		t.Fatal("exec function should exist in BuildData result")
 	}
 

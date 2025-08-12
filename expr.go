@@ -51,13 +51,7 @@ func Evaluate(ex string, data Data) (interface{}, error) {
 		return nil, err
 	}
 
-	// convert Data to map[string]interface{} for expr.Run
-	var runData interface{} = data
-	if data != nil {
-		runData = map[string]interface{}(data)
-	}
-
-	output, err := expr.Run(program, runData)
+	output, err := expr.Run(program, data)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +70,7 @@ func EvaluateString(ex string, data Data) (string, error) {
 	return str, nil
 }
 
-type Data map[string]interface{}
+type Data interface{}
 
 // BuildData constructs a Data object from a context, environment map, and key-value pairs.
 // It provides the following variables by default:
@@ -87,13 +81,13 @@ type Data map[string]interface{}
 func BuildData(ctx context.Context, envMap map[string]string, kvPairs ...interface{}) (Data, error) {
 	kvMap := make(map[string]interface{})
 	if len(kvPairs)%2 != 0 {
-		return Data{}, fmt.Errorf("uneven number of key-value pairs")
+		return nil, fmt.Errorf("uneven number of key-value pairs")
 	}
 
 	for i := 0; i < len(kvPairs); i += 2 {
 		key, ok := kvPairs[i].(string)
 		if !ok {
-			return Data{}, fmt.Errorf("key must be a string, got %T", kvPairs[i])
+			return nil, fmt.Errorf("key must be a string, got %T", kvPairs[i])
 		}
 		value := kvPairs[i+1]
 		kvMap[key] = value
