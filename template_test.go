@@ -371,7 +371,7 @@ Total tasks: {{ $taskCount }}`
 		tmpl := expression.NewTemplate("test", data)
 		template := `
 {{- range $index, $task := tasks }}
-- **{{ $task.content }}**: {{ if int $task.priority }}Has priority{{ else }}No priority{{ end }}
+- **{{ $task.content }}**: {{ if $task.priority }}Has priority{{ else }}No priority{{ end }}
 {{- end }}`
 		err := tmpl.Parse(template)
 		if err != nil {
@@ -400,7 +400,7 @@ Total tasks: {{ $taskCount }}`
 		tmpl := expression.NewTemplate("test", data)
 		template := `
 {{- range $index, $task := tasks }}
-- **{{ $task.content }}**: {{ if eq (int $task.priority) 4 }}🔴 High{{ else if eq (int $task.priority) 3 }}🟡 Medium{{ else if eq (int $task.priority) 2 }}🔵 Low{{ else }}⚪ None{{ end }}
+- **{{ $task.content }}**: {{ if eq $task.priority "4" }}🔴 High{{ else if eq $task.priority "3" }}🟡 Medium{{ else if eq $task.priority "2" }}🔵 Low{{ else }}⚪ None{{ end }}
 {{- end }}`
 		err := tmpl.Parse(template)
 		if err != nil {
