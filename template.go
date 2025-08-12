@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -34,7 +36,27 @@ func NewTemplate(name string, data Data) *Template {
 func (t *Template) Parse(text string) error {
 	t.text = text
 	processed := t.preProcessExpressions(text)
-	tmpl := template.New(t.name).Funcs(template.FuncMap{"expr": t.evalExpr, "exprBool": t.evalExprBool})
+	tmpl := template.New(t.name).Funcs(template.FuncMap{
+		"expr": t.evalExpr, 
+		"exprBool": t.evalExprBool,
+		"int": func(v interface{}) int {
+			switch val := v.(type) {
+			case int:
+				return val
+			case int64:
+				return int(val)
+			case float64:
+				return int(val)
+			case string:
+				if i, err := strconv.Atoi(val); err == nil {
+					return i
+				}
+				return 0
+			default:
+				return 0
+			}
+		},
+	})
 
 	parsed, err := tmpl.Parse(processed)
 	if err != nil {
@@ -43,6 +65,14 @@ func (t *Template) Parse(text string) error {
 
 	t.tmpl = parsed
 	return nil
+}
+
+func (t *Template) ParseFile(file string) error {
+	text, err := os.ReadFile(filepath.Clean(file))
+	if err != nil {
+		return fmt.Errorf("reading template file %s: %w", file, err)
+	}
+	return t.Parse(string(text))
 }
 
 func (t *Template) Execute(wr io.Writer) error {
@@ -113,9 +143,19 @@ func (t *Template) preProcessExpressions(text string) string {
 		switch {
 		case strings.HasPrefix(action, "if "):
 			condition := strings.TrimPrefix(action, "if ")
-			result.WriteString("if exprBool `")
-			result.WriteString(strings.TrimSpace(condition))
-			result.WriteString("`")
+			condition = strings.TrimSpace(condition)
+
+			// Special cases where we should use Go's template boolean evaluation:
+			// 1. Dot references within range/with contexts
+			// 2. Variable references (starting with $) - includes function calls with variables
+			if (contextDepth > 0 && strings.HasPrefix(condition, ".")) || strings.Contains(condition, "$") {
+				result.WriteString("if ")
+				result.WriteString(condition)
+			} else {
+				result.WriteString("if exprBool `")
+				result.WriteString(condition)
+				result.WriteString("`")
+			}
 		case strings.HasPrefix(action, "with "):
 			value := strings.TrimPrefix(action, "with ")
 			result.WriteString("with expr `")
@@ -129,14 +169,74 @@ func (t *Template) preProcessExpressions(text string) string {
 			}
 		case action == "else":
 			result.WriteString("else")
+		case strings.HasPrefix(action, "else if "):
+			condition := strings.TrimPrefix(action, "else if ")
+			condition = strings.TrimSpace(condition)
+
+			// Same logic as regular if conditions
+			if (contextDepth > 0 && strings.HasPrefix(condition, ".")) || strings.Contains(condition, "$") {
+				result.WriteString("else if ")
+				result.WriteString(condition)
+			} else {
+				result.WriteString("else if exprBool `")
+				result.WriteString(condition)
+				result.WriteString("`")
+			}
 		case strings.HasPrefix(action, "range "):
 			value := strings.TrimPrefix(action, "range ")
-			result.WriteString("range expr `")
-			result.WriteString(strings.TrimSpace(value))
-			result.WriteString("`")
+			value = strings.TrimSpace(value)
+
+			// Check if this is a range with variable assignment (contains :=)
+			if strings.Contains(value, ":=") {
+				// Parse out the expression part after :=
+				parts := strings.Split(value, ":=")
+				if len(parts) == 2 {
+					vars := strings.TrimSpace(parts[0])
+					expr := strings.TrimSpace(parts[1])
+					result.WriteString("range ")
+					result.WriteString(vars)
+					result.WriteString(" := expr `")
+					result.WriteString(expr)
+					result.WriteString("`")
+				} else {
+					// Fallback: use as-is
+					result.WriteString("range ")
+					result.WriteString(value)
+				}
+			} else {
+				result.WriteString("range expr `")
+				result.WriteString(value)
+				result.WriteString("`")
+			}
 			contextDepth++
 		default:
 			if contextDepth > 0 && (strings.HasPrefix(action, ".") || action == ".") {
+				result.WriteString(action)
+			} else if strings.Contains(action, ":=") {
+				// Variable assignment - parse it carefully
+				parts := strings.Split(action, ":=")
+				if len(parts) == 2 {
+					varName := strings.TrimSpace(parts[0])
+					expr := strings.TrimSpace(parts[1])
+
+					result.WriteString(varName)
+					result.WriteString(" := ")
+
+					// If the expression is just "." and we're in a context, use it directly
+					// Otherwise, wrap it in expr for evaluation
+					if contextDepth > 0 && expr == "." {
+						result.WriteString(".")
+					} else {
+						result.WriteString("expr `")
+						result.WriteString(expr)
+						result.WriteString("`")
+					}
+				} else {
+					// Fallback: use as-is
+					result.WriteString(action)
+				}
+			} else if strings.HasPrefix(action, "$") {
+				// Variable reference - use Go template syntax directly
 				result.WriteString(action)
 			} else {
 				result.WriteString("expr `")
