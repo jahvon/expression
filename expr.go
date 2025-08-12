@@ -63,11 +63,29 @@ func EvaluateString(ex string, data Data) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	str, ok := output.(string)
-	if !ok {
-		return "", fmt.Errorf("expected string, got %T", output)
+	switch o := output.(type) {
+	case string:
+		return o, nil
+	case int, int64, float64, uint, uint64:
+		return fmt.Sprintf("%v", o), nil
+	case bool:
+		return strconv.FormatBool(o), nil
+	case []byte:
+		return string(o), nil
+	default:
+		if output == nil {
+			return "", nil
+		}
+		if reflect.TypeOf(output).Kind() == reflect.Ptr && reflect.ValueOf(output).IsNil() {
+			return "", nil // Handle nil pointer gracefully
+		}
+		if reflect.TypeOf(output).Kind() == reflect.Map ||
+			reflect.TypeOf(output).Kind() == reflect.Slice ||
+			reflect.TypeOf(output).Kind() == reflect.Array {
+			return fmt.Sprintf("%v", output), nil
+		}
 	}
-	return str, nil
+	return "", fmt.Errorf("unexpected output type %T from expression %q", output, ex)
 }
 
 type Data interface{}
