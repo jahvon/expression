@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/expr-lang/expr"
 	"github.com/expr-lang/expr/vm"
@@ -42,11 +44,11 @@ func IsTruthy(ex string, data Data) (bool, error) {
 func Evaluate(ex string, data Data) (interface{}, error) {
 	var program *vm.Program
 	var err error
-	if data == nil || reflect.ValueOf(data).IsNil() {
-		program, err = expr.Compile(ex)
-	} else {
-		program, err = expr.Compile(ex, expr.Env(data))
+	opts := additionalFunctions()
+	if data != nil && !reflect.ValueOf(data).IsNil() {
+		opts = append(opts, expr.Env(data))
 	}
+	program, err = expr.Compile(ex, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -183,4 +185,138 @@ func environmentToSlice(env map[string]string) []string {
 		envSlice = append(envSlice, fmt.Sprintf("%s=%s", key, value))
 	}
 	return envSlice
+}
+
+func additionalFunctions() []expr.Option {
+	return []expr.Option{
+		// File existence and type checking
+		expr.Function("fileExists", func(params ...interface{}) (interface{}, error) {
+			if len(params) != 1 {
+				return false, fmt.Errorf("fileExists() takes exactly 1 argument")
+			}
+			path, ok := params[0].(string)
+			if !ok {
+				return false, fmt.Errorf("fileExists() requires string argument")
+			}
+			_, err := os.Stat(path)
+			return err == nil, nil
+		}),
+
+		expr.Function("dirExists", func(params ...interface{}) (interface{}, error) {
+			if len(params) != 1 {
+				return false, fmt.Errorf("dirExists() takes exactly 1 argument")
+			}
+			path, ok := params[0].(string)
+			if !ok {
+				return false, fmt.Errorf("dirExists() requires string argument")
+			}
+			info, err := os.Stat(path)
+			return err == nil && info.IsDir(), nil
+		}),
+		expr.Function("isFile", func(params ...interface{}) (interface{}, error) {
+			if len(params) != 1 {
+				return false, fmt.Errorf("isFile() takes exactly 1 argument")
+			}
+			path, ok := params[0].(string)
+			if !ok {
+				return false, fmt.Errorf("isFile() requires string argument")
+			}
+			info, err := os.Stat(path)
+			return err == nil && !info.IsDir(), nil
+		}),
+		expr.Function("isDir", func(params ...interface{}) (interface{}, error) {
+			if len(params) != 1 {
+				return false, fmt.Errorf("isDir() takes exactly 1 argument")
+			}
+			path, ok := params[0].(string)
+			if !ok {
+				return false, fmt.Errorf("isDir() requires string argument")
+			}
+			info, err := os.Stat(path)
+			return err == nil && info.IsDir(), nil
+		}),
+
+		// Path operations
+		expr.Function("basename", func(params ...interface{}) (interface{}, error) {
+			if len(params) != 1 {
+				return "", fmt.Errorf("basename() takes exactly 1 argument")
+			}
+			path, ok := params[0].(string)
+			if !ok {
+				return "", fmt.Errorf("basename() requires string argument")
+			}
+			return filepath.Base(path), nil
+		}),
+		expr.Function("dirname", func(params ...interface{}) (interface{}, error) {
+			if len(params) != 1 {
+				return "", fmt.Errorf("dirname() takes exactly 1 argument")
+			}
+			path, ok := params[0].(string)
+			if !ok {
+				return "", fmt.Errorf("dirname() requires string argument")
+			}
+			return filepath.Dir(path), nil
+		}),
+
+		// File content operations
+		expr.Function("readFile", func(params ...interface{}) (interface{}, error) {
+			if len(params) != 1 {
+				return "", fmt.Errorf("readFile() takes exactly 1 argument")
+			}
+			path, ok := params[0].(string)
+			if !ok {
+				return "", fmt.Errorf("readFile() requires string argument")
+			}
+			content, err := os.ReadFile(path)
+			if err != nil {
+				return "", err
+			}
+			return string(content), nil
+		}),
+		expr.Function("fileSize", func(params ...interface{}) (interface{}, error) {
+			if len(params) != 1 {
+				return int64(0), fmt.Errorf("fileSize() takes exactly 1 argument")
+			}
+			path, ok := params[0].(string)
+			if !ok {
+				return int64(0), fmt.Errorf("fileSize() requires string argument")
+			}
+			info, err := os.Stat(path)
+			if err != nil {
+				return int64(0), err
+			}
+			return info.Size(), nil
+		}),
+
+		// File time operations
+		expr.Function("fileModTime", func(params ...interface{}) (interface{}, error) {
+			if len(params) != 1 {
+				return time.Time{}, fmt.Errorf("fileModTime() takes exactly 1 argument")
+			}
+			path, ok := params[0].(string)
+			if !ok {
+				return time.Time{}, fmt.Errorf("fileModTime() requires string argument")
+			}
+			info, err := os.Stat(path)
+			if err != nil {
+				return time.Time{}, err
+			}
+			return info.ModTime(), nil
+		}),
+
+		expr.Function("fileAge", func(params ...interface{}) (interface{}, error) {
+			if len(params) != 1 {
+				return time.Duration(0), fmt.Errorf("fileAge() takes exactly 1 argument")
+			}
+			path, ok := params[0].(string)
+			if !ok {
+				return time.Duration(0), fmt.Errorf("fileAge() requires string argument")
+			}
+			info, err := os.Stat(path)
+			if err != nil {
+				return time.Duration(0), err
+			}
+			return time.Since(info.ModTime()), nil
+		}),
+	}
 }

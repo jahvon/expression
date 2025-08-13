@@ -45,7 +45,7 @@ func main() {
 }
 ```
 
-### Template Processing
+## Template Processing
 
 The template engine extends Go's `text/template` with Expr expression evaluation:
 
@@ -91,6 +91,31 @@ Items:
     
     fmt.Println(result)
 }
+```
+
+## Expression Language
+
+**See the [Expr Language Definition](https://expr-lang.org/docs/language-definition) for the full syntax and 
+capabilities of the expression language.**
+
+Additionally, the following functions are provided:
+
+**File Helpers:**
+- `fileExists(path)` - Check if file/directory exists
+- `dirExists(path)` - Check if path is a directory  
+- `isFile(path)` - Check if path is a file
+- `isDir(path)` - Check if path is a directory
+- `basename(path)` - Get filename from path
+- `dirname(path)` - Get directory from path
+- `readFile(path)` - Read file contents as string
+- `fileSize(path)` - Get file size in bytes
+- `fileModTime(path)` - Get file modification time
+- `fileAge(path)` - Get duration since last modified
+
+```go
+// Example usage
+result, _ := expression.Evaluate(`fileExists("/path/file.txt") && fileSize("/path/file.txt") > 0`, nil)
+filename, _ := expression.EvaluateString(`basename("/home/user/doc.txt")`, nil) // "doc.txt"
 ```
 
 ## Contributing
